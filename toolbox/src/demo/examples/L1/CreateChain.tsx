@@ -28,7 +28,13 @@ export default function CreateChain() {
 
     useEffect(() => {
         if (!genesisData) {
-            setGenesisData(quickAndDirtyGenesisBuilder(walletEVMAddress, evmChainId, gasLimit, targetBlockRate));
+            setGenesisData(quickAndDirtyGenesisBuilder({
+                ownerAddress: walletEVMAddress,
+                chainID: evmChainId,
+                gasLimit,
+                targetBlockRate,
+                nativeMinterAdmin: walletEVMAddress
+            }));
         }
     }, [walletEVMAddress, evmChainId, gasLimit, targetBlockRate]);
 

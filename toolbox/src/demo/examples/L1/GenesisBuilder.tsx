@@ -5,7 +5,19 @@
 import TransparentUpgradableProxy from "../../../../contracts/openzeppelin-4.9/compiled/TransparentUpgradeableProxy.json"
 import ProxyAdmin from "../../../../contracts/openzeppelin-4.9/compiled/ProxyAdmin.json"
 
-export const quickAndDirtyGenesisBuilder = (ownerAddress: `${string}`, chainID: number, gasLimit: number, targetBlockRate: number) => {
+export const quickAndDirtyGenesisBuilder = ({
+    ownerAddress,
+    chainID,
+    gasLimit,
+    targetBlockRate,
+    nativeMinterAdmin
+}: {
+    ownerAddress: `${string}`;
+    chainID: number;
+    gasLimit: number;
+    targetBlockRate: number;
+    nativeMinterAdmin?: `${string}`;
+}) => {
     if (!/^0x[a-fA-F0-9]{40}$/.test(ownerAddress)) {
         throw new Error("Invalid ownerAddress format. It should be '0x' followed by 20 hex bytes (40 characters).");
     }
@@ -64,7 +76,13 @@ export const quickAndDirtyGenesisBuilder = (ownerAddress: `${string}`, chainID: 
                 "blockTimestamp": now,
                 "quorumNumerator": 67,
                 "requirePrimaryNetworkSigners": true
-            }
+            },
+            ...(nativeMinterAdmin ? {
+                "contractNativeMinterConfig": {
+                    "blockTimestamp": 0,
+                    "adminAddresses": [nativeMinterAdmin]
+                }
+            } : {})
         },
         "difficulty": "0x0",
         "excessBlobGas": null,
@@ -105,6 +123,8 @@ export default function GenesisBuilder() {
     const { walletEVMAddress } = useWalletStore()
 
     const [ownerAddress, setOwnerAddress] = useState<string>("")
+    const [nativeMinterAdmin, setNativeMinterAdmin] = useState<string>("")
+    const [enableNativeMinter, setEnableNativeMinter] = useState(true)
 
     useEffect(() => {
         if (ownerAddress) return
@@ -112,16 +132,28 @@ export default function GenesisBuilder() {
     }, [walletEVMAddress, ownerAddress])
 
     useEffect(() => {
+        if (!nativeMinterAdmin && ownerAddress) {
+            setNativeMinterAdmin(ownerAddress)
+        }
+    }, [ownerAddress, nativeMinterAdmin])
+
+    useEffect(() => {
         if (!ownerAddress || !evmChainId) {
             setGenesisData("")
             return
         }
         try {
-            setGenesisData(quickAndDirtyGenesisBuilder(ownerAddress, evmChainId, gasLimit, targetBlockRate))
+            setGenesisData(quickAndDirtyGenesisBuilder({
+                ownerAddress,
+                chainID: evmChainId,
+                gasLimit,
+                targetBlockRate,
+                nativeMinterAdmin: enableNativeMinter ? nativeMinterAdmin || ownerAddress : undefined
+            }))
         } catch (error) {
             setGenesisData(error instanceof Error ? error.message : "Invalid owner address")
         }
-    }, [ownerAddress, evmChainId, gasLimit, targetBlockRate])
+    }, [ownerAddress, evmChainId, gasLimit, targetBlockRate, nativeMinterAdmin, enableNativeMinter])
 
     return (
         <div className="space-y-4">
@@ -156,6 +188,25 @@ export default function GenesisBuilder() {
                 type="number"
                 notes="Target time between blocks in seconds"
             />
+            <div className="flex items-center">
+                <input
+                    type="checkbox"
+                    id="enableNativeMinter"
+                    checked={enableNativeMinter}
+                    onChange={(e) => setEnableNativeMinter(e.target.checked)}
+                    className="mr-2"
+                />
+                <label htmlFor="enableNativeMinter">Enable Native Minter</label>
+            </div>
+            {enableNativeMinter && (
+                <Input
+                    label="Native Minter Admin"
+                    value={nativeMinterAdmin}
+                    onChange={setNativeMinterAdmin}
+                    placeholder="Default: same as Owner Address"
+                    notes="Address that can mint native tokens"
+                />
+            )}
             {genesisData && !genesisData.includes("Invalid") && (
                 <CodeHighlighter
                     code={genesisData}
